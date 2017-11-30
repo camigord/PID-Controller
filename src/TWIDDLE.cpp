@@ -13,10 +13,14 @@ void TWIDDLE::Init(double tol, int num_param){
   tolerance = tol;
   n_parameters = num_param;
 
-  for(int i=0;i<num_param;++i){
-    params.push_back(0.0);
-    d_params.push_back(1.0);
-  }
+  d_params.push_back(1.0);
+  d_params.push_back(1.0);
+  d_params.push_back(0.01);
+
+  // These initial values were found manually
+  params.push_back(1.0);
+  params.push_back(15.0);
+  params.push_back(0.01);
 
   initialized = false;
 
@@ -45,6 +49,8 @@ void TWIDDLE::UpdateError(double error){
 
         // Cycle parameters
         idx_control = (idx_control+1) % n_parameters;
+
+        UpdateError(0.0); // Update parameters before leaving function
       }
       else{
         params[idx_control] -= 2*d_params[idx_control];
@@ -64,6 +70,7 @@ void TWIDDLE::UpdateError(double error){
 
       // Cycle parameters
       idx_control = (idx_control+1) % n_parameters;
+      UpdateError(0.0); // Update parameters before leaving function
     }
   }
 }

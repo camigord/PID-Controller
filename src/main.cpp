@@ -38,12 +38,12 @@ int main(int argc, char* argv[])
 
   bool tune_params = false;
   double Kp = 1.0;
-  double Kd = 1.0;
-  double Ki = 1.0;
+  double Kd = 17.4119;
+  double Ki = 0.017179;
 
-  double Kp_s = 2.0;
-  double Kd_s = 4.0;
-  double Ki_s = 0.0;
+  double Kp_s = 2.0; //1.0;
+  double Kd_s = 13.8514; //5.0;
+  double Ki_s = 0.00891601; //0.005;
 
   // Check input parameters to determine whether or not to tune PID params
   if(argc > 1){
@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
   else{
     cout << "PID controller will use the following parameters:" << endl;
     cout << "Kp = " << Kp << "\t Kd = " << Kd << "\t Ki = " << Ki << endl;
-    cout << "Kp_s = " << Kp << "\t Kd_s = " << Kd << "\t Ki_s = " << Ki << endl;
+    cout << "Kp_s = " << Kp_s << "\t Kd_s = " << Kd_s << "\t Ki_s = " << Ki_s << endl;
   }
   cout << "---------------------------------------------------" << endl;
 
@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
   PID pid_speed;
   TWIDDLE twid;
 
-  double desired_speed = 30.0;
+  double desired_speed = 25.0;
 
   // Use during tuning - number of steps per trial
   double evaluation_steps = 0;
@@ -77,14 +77,16 @@ int main(int argc, char* argv[])
     pid_speed.Init(Kp_s, Kd_s, Ki_s, evaluation_steps);
   }
   else{
-    evaluation_steps = 1000;
+    evaluation_steps = 2000;
     twid.Init(tolerance, num_param);
     vector<double> params = twid.get_Parameters();
-    pid.Init(params[0], params[1], params[2], evaluation_steps);
-    pid_speed.Init(Kp_s, Kd_s, Ki_s, evaluation_steps);
+    pid.Init(Kp, Kd, Ki, evaluation_steps);
+    //pid.Init(params[0], params[1], params[2], evaluation_steps);
+    //pid_speed.Init(Kp_s, Kd_s, Ki_s, evaluation_steps);
+    pid_speed.Init(params[0], params[1], params[2], evaluation_steps);
   }
 
-  h.onMessage([&pid, &pid_speed, &evaluation_steps, &tune_params, &twid, &desired_speed](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  h.onMessage([&pid, &pid_speed, &evaluation_steps, &tune_params, &twid, &desired_speed, &Kp, &Kd, &Ki](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -109,7 +111,8 @@ int main(int argc, char* argv[])
             // Implementing Twiddle for tuning PID parameters
 
             // Send error to optimizer
-            error = (pid.TotalError() / evaluation_steps); // + 0.3*(pid_speed.TotalError() / evaluation_steps);
+            // error = (pid.TotalError() / evaluation_steps); // error when tuning position controller
+            error = 0.7*(pid.TotalError() / evaluation_steps) + 0.3*(pid_speed.TotalError() / evaluation_steps); // error when tuning speed controller
             twid.UpdateError(error);
 
             // Get next parameter set
@@ -120,24 +123,23 @@ int main(int argc, char* argv[])
               cout << "---------------------------------------------------" << endl;
               cout << "Twiddle terminated!" << endl;
               cout << "Found parameters: \t Kp = " << params[0] << "\t Kd = " << params[1] << "\t Ki = " << params[2] << endl;
-              //cout << "Found parameters: \t Kp_s = " << params[3] << "\t Kd_s = " << params[4] << "\t Ki_s = " << params[5] << endl;
               cout << "---------------------------------------------------" << endl;
               cout << "---------------------------------------------------" << endl;
               exit(0);
             }
             else{
               // Restart environment with new PID
-              pid.Init(params[0], params[1], params[2], evaluation_steps);
-              pid_speed.Init(2.0, 4.0, 0.0, evaluation_steps);
-              //pid_speed.Init(params[3], params[4], params[5], evaluation_steps);
+              pid.Init(Kp, Kd, Ki, evaluation_steps);
+              //pid.Init(params[0], params[1], params[2], evaluation_steps);
+              // pid_speed.Init(Kp_s, Kd_s, Ki_s, evaluation_steps);
+              pid_speed.Init(params[0], params[1], params[2], evaluation_steps);
+
               std::string msg2 = "42[\"reset\",{}]";
               ws.send(msg2.data(), msg2.length(), uWS::OpCode::TEXT);
 
+              cout << "Error: " << error << endl;
               cout << "Restarting: \t Kp = " << params[0] << "\t Kd = " << params[1] << "\t Ki = " << params[2] << endl;
-              //cout << "Restarting: \t Kp_s = " << params[3] << "\t Kd_s = " << params[4] << "\t Ki_s = " << params[5] << endl;
-
               cout << "Restarting: \t delta Kp = " << twid.d_params[0] << "\t delta Kd = " << twid.d_params[1] << "\t delta Ki = " << twid.d_params[2] << endl;
-              //cout << "Restarting: \t delta Kp_s = " << twid.d_params[3] << "\t delta Kd_s = " << twid.d_params[4] << "\t delta Ki_s = " << twid.d_params[5] << endl;
             }
           }
           else{
